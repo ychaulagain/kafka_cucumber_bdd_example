@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringJUnitConfig
@@ -34,6 +35,7 @@ public class UUIDSteps {
     private EmbeddedKafkaBroker embeddedKafka;
 
     private KafkaConsumer<String, String> consumer;
+    private String producedUUID;
 
     @Given("a running Kafka broker")
     public void kafkaBrokerRunning() {
@@ -49,10 +51,10 @@ public class UUIDSteps {
 
     @When("I produce a random UUID")
     public void produceRandomUUID() {
-        uuidProducer.sendMessage();
+        producedUUID = uuidProducer.sendMessage();
     }
 
-    @Then("the UUID should be consumed and logged")
+    @Then("the exact UUID should be consumed and logged")
     public void consumeUUID() throws InterruptedException {
         // Add delay to ensure the message is consumed
         TimeUnit.SECONDS.sleep(2);
@@ -60,5 +62,6 @@ public class UUIDSteps {
         // Consume the message
         ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic");
         assertNotNull(record.value(), "No records found for topic");
+        assertEquals(producedUUID, record.value(), "The consumed UUID does not match the produced UUID");
     }
 }

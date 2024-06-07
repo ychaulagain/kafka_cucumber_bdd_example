@@ -1,6 +1,6 @@
 Feature: UUID Kafka Integration
 
-  Scenario: Produce and consume UUID
+  Scenario: Produce and consume exact UUID
     Given a running Kafka broker
     When I produce a random UUID
-    Then the UUID should be consumed and logged
+    Then the exact UUID should be consumed and logged

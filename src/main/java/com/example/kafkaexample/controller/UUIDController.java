@@ -15,7 +15,6 @@ public class UUIDController {
 
     @GetMapping("/produce")
     public String produce() {
-        uuidProducer.sendMessage();
-        return "UUID produced";
+        return uuidProducer.sendMessage();
     }
 }
