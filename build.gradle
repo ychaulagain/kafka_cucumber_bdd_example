@@ -26,7 +26,8 @@ dependencies {
     testImplementation 'io.cucumber:cucumber-junit:7.10.1'
 
     implementation 'org.junit.platform:junit-platform-suite-api:1.8.2'
-    testImplementation group: 'io.cucumber', name: 'cucumber-junit-platform-engine', version: '7.10.1'
+    testImplementation 'io.cucumber:cucumber-junit-platform-engine:7.10.1'
+    testImplementation 'net.masterthought:cucumber-reporting:5.7.0'
 }
 
 tasks.named('test') {
