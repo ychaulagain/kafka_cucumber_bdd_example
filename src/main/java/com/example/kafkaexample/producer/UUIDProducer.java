@@ -17,13 +17,13 @@ public class UUIDProducer {
     public String sendMessage() {
         String uuid = UUID.randomUUID().toString();
         kafkaTemplate.send(TOPIC, uuid);
-        System.out.println("Message sent: " + uuid); // Logging produced UUID
+        System.out.println("Message sent: " + uuid);
         return uuid;
     }
 
     public void sendInvalidMessage() {
         String invalidUUID = "invalid-uuid";
         kafkaTemplate.send(TOPIC, invalidUUID);
-        System.out.println("Invalid message sent: " + invalidUUID); // Logging invalid UUID
+        System.out.println("Invalid message sent: " + invalidUUID);
     }
 }
