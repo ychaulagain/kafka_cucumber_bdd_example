@@ -83,6 +83,15 @@ public class UUIDSteps {
         kafkaTemplate.flush();
     }
 
+    @Then("the exact UUID should be consumed and logged")
+    public void consumeUUID() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(5);
+
+        ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic", Duration.ofSeconds(10));
+        Assertions.assertNotNull(record.value(), "No records found for topic");
+        Assertions.assertEquals(producedUUIDs.getFirst(), record.value(), "The consumed UUID does not match the produced UUID");
+    }
+
     @When("no UUID is produced")
     public void noUUIDProduced() {
         // Intentionally do nothing
@@ -92,15 +101,6 @@ public class UUIDSteps {
     public void produceInvalidUUID() {
         uuidProducer.sendInvalidMessage();
         kafkaTemplate.flush();
-    }
-
-    @Then("the exact UUID should be consumed and logged")
-    public void consumeUUID() throws InterruptedException {
-        TimeUnit.SECONDS.sleep(5);
-
-        ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic", Duration.ofSeconds(10));
-        Assertions.assertNotNull(record.value(), "No records found for topic");
-        Assertions.assertEquals(producedUUIDs.get(0), record.value(), "The consumed UUID does not match the produced UUID");
     }
 
     @Then("no UUID should be consumed")
