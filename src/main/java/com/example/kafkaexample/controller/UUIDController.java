@@ -13,12 +13,16 @@ public class UUIDController {
 
     @GetMapping
     public String produceRandomUUID() {
-        return uuidProducer.sendMessage();
+
+        String uuid = uuidProducer.sendMessage();
+        System.out.println("Produced UUID via GET: " + uuid);
+        return uuid;
     }
 
     @PostMapping
     public String produceUUID(@RequestBody String uuid) {
-        System.out.println("Received UUID via POST: " + uuid);
-        return uuidProducer.sendMessage(uuid);
+        String sentUuid = uuidProducer.sendMessage(uuid);
+        System.out.println("Produced UUID via POST: " + sentUuid);
+        return sentUuid;
     }
 }
