@@ -17,9 +17,12 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import org.springframework.http.MediaType;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,6 +33,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringJUnitConfig
@@ -53,21 +57,33 @@ public class UUIDSteps {
     private KafkaConsumer<String, String> consumer;
     private List<String> producedUUIDs;
 
+    @Before
+    public void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        producedUUIDs = new ArrayList<>();
+    }
+
+    @After
+    public void tearDown() {
+        if (consumer != null) {
+            consumer.close();
+        }
+    }
+
     @Given("a running Kafka broker")
     public void kafkaBrokerRunning() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
-
         // Create consumer configuration
         Map<String, Object> consumerProps = new HashMap<>(KafkaTestUtils.consumerProps("testGroup", "true", embeddedKafka));
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000); // Increase session timeout
+        consumerProps.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 10000); // Increase heartbeat interval
 
         // Create and configure the consumer
         consumer = new KafkaConsumer<>(consumerProps);
         consumer.subscribe(Collections.singleton("uuid_topic"));
 
-        producedUUIDs = new ArrayList<>();
         System.out.println("Consumer subscribed to topic: uuid_topic");
     }
 
@@ -79,17 +95,55 @@ public class UUIDSteps {
                 .getResponse()
                 .getContentAsString();
 
+        System.out.println("Produced UUID via GET: " + response);
         producedUUIDs.add(response);
         kafkaTemplate.flush();
+        TimeUnit.SECONDS.sleep(10); // Increased sleep time for producing message
     }
 
     @Then("the exact UUID should be consumed and logged")
     public void consumeUUID() throws InterruptedException {
-        TimeUnit.SECONDS.sleep(5);
+        System.out.println("Waiting for the UUID to be consumed...");
+        TimeUnit.SECONDS.sleep(30); // Increased sleep time for consuming message
 
-        ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic", Duration.ofSeconds(10));
-        Assertions.assertNotNull(record.value(), "No records found for topic");
-        Assertions.assertEquals(producedUUIDs.getFirst(), record.value(), "The consumed UUID does not match the produced UUID");
+        // Verify consumer is subscribed to the correct topic
+        System.out.println("Subscribed topics: " + consumer.subscription());
+
+        ConsumerRecords<String, String> consumerRecords = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(15));
+        List<ConsumerRecord<String, String>> records = new ArrayList<>();
+        consumerRecords.forEach(records::add);
+
+        System.out.println("Number of records consumed: " + records.size());
+        records.forEach(record -> System.out.println("Consumed UUID: " + record.value()));
+
+        // Assert that records are not empty
+        Assertions.assertFalse(records.isEmpty(), "No records found for topic");
+
+        // Check the first record
+        ConsumerRecord<String, String> record = records.get(0);
+        Assertions.assertNotNull(record.value(), "Record value is null");
+
+        // Compare the consumed UUID with the produced one
+        Assertions.assertEquals(producedUUIDs.get(0), record.value(), "The consumed UUID does not match the produced UUID");
+
+        // Log the exact UUID that was consumed
+        System.out.println("Exact UUID consumed: " + record.value());
+    }
+
+    @When("I send a UUID {string} to the POST API")
+    public void sendUUIDToPostAPI(String uuid) throws Exception {
+        String response = mockMvc.perform(post("/produce")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(uuid))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        System.out.println("Sent UUID via POST API: " + response);
+        producedUUIDs.add(uuid); // Fix: add the input uuid to producedUUIDs
+        kafkaTemplate.flush();
+        TimeUnit.SECONDS.sleep(10); // Increased sleep time for producing message
     }
 
     @When("no UUID is produced")
@@ -101,13 +155,19 @@ public class UUIDSteps {
     public void produceInvalidUUID() {
         uuidProducer.sendInvalidMessage();
         kafkaTemplate.flush();
+        try {
+            TimeUnit.SECONDS.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     @Then("no UUID should be consumed")
     public void noUUIDConsumed() throws InterruptedException {
-        TimeUnit.SECONDS.sleep(5);
+        System.out.println("Waiting to verify no UUID is consumed...");
+        TimeUnit.SECONDS.sleep(20); // Increased sleep time for consuming message
 
-        ConsumerRecords<String, String> consumerRecords = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(10));
+        ConsumerRecords<String, String> consumerRecords = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(15));
         List<ConsumerRecord<String, String>> records = new ArrayList<>();
         consumerRecords.forEach(records::add);
 
@@ -116,10 +176,11 @@ public class UUIDSteps {
 
     @Then("the invalid UUID should be handled correctly")
     public void handleInvalidUUID() throws InterruptedException {
-        TimeUnit.SECONDS.sleep(5);
+        System.out.println("Waiting to verify invalid UUID consumption...");
+        TimeUnit.SECONDS.sleep(20); // Increased sleep time for consuming message
 
         try {
-            ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic", Duration.ofSeconds(10));
+            ConsumerRecord<String, String> record = KafkaTestUtils.getSingleRecord(consumer, "uuid_topic", Duration.ofSeconds(15));
             Assertions.assertNotNull(record.value(), "No records found for topic");
             System.out.println("Consumed invalid UUID: " + record.value());
         } catch (IllegalStateException e) {

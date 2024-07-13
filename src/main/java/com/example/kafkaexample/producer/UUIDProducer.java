@@ -21,6 +21,12 @@ public class UUIDProducer {
         return uuid;
     }
 
+    public String sendMessage(String uuid) {
+        kafkaTemplate.send(TOPIC, uuid);
+        System.out.println("Message sent: " + uuid);
+        return uuid;
+    }
+
     public void sendInvalidMessage() {
         String invalidUUID = "invalid-uuid";
         kafkaTemplate.send(TOPIC, invalidUUID);

@@ -1,20 +1,28 @@
 package com.example.kafkaexample.controller;
 
 import com.example.kafkaexample.producer.UUIDProducer;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/produce")
 public class UUIDController {
 
-    private final UUIDProducer uuidProducer;
+    @Autowired
+    private UUIDProducer uuidProducer;
 
-    public UUIDController(UUIDProducer uuidProducer) {
-        this.uuidProducer = uuidProducer;
+    @GetMapping
+    public String produceRandomUUID() {
+
+        String uuid = uuidProducer.sendMessage();
+        System.out.println("Produced UUID via GET: " + uuid);
+        return uuid;
     }
 
-    @GetMapping("/produce")
-    public String produce() {
-        return uuidProducer.sendMessage();
+    @PostMapping
+    public String produceUUID(@RequestBody String uuid) {
+        String sentUuid = uuidProducer.sendMessage(uuid);
+        System.out.println("Produced UUID via POST: " + sentUuid);
+        return sentUuid;
     }
 }
